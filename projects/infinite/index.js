@@ -49,8 +49,10 @@ const UNIV3_VAULTS = [
 // === cbEGGS Contract (Base) - owned by Infinite Trading ===
 const CBEGGS_CONTRACT = "0xddbabe113c376f51e5817242871879353098c296"
 
-// === Treasury address (for managed dHEDGE vaults) ===
+// === dHEDGE vault managers ===
 const TREASURY_1 = "0xb5dB6e5a301E595B76F40319896a8dbDc277CEfB"  // Main DAO treasury
+const OPERATIONS_WALLET = "0xE6C312d661bE5e3eC022e2F18e084713A434A340"  // Infinite Trading operations wallet (manages the Base scalping and agent vaults)
+const DHEDGE_MANAGERS = [TREASURY_1, OPERATIONS_WALLET]
 
 // === dHEDGE Factory Contracts (for vault discovery) ===
 const DHEDGE_FACTORY = {
@@ -162,14 +164,15 @@ const getDhedgeVaultsTVL = async (api) => {
   
   if (!factory) return
   
-  // Get all vaults managed by TREASURY_1 (the main DAO wallet acting as manager)
-  const managedVaults = await api.call({
+  // Get all vaults managed by the DAO treasury or the operations wallet
+  const managedLists = await api.multiCall({
     abi: DHEDGE_V2_FACTORY_ABI,
     target: factory,
-    params: [TREASURY_1],
+    calls: DHEDGE_MANAGERS,
   })
-  
-  if (!managedVaults || managedVaults.length === 0) return
+  const managedVaults = [...new Set(managedLists.flat().map((vault) => vault.toLowerCase()))]
+
+  if (managedVaults.length === 0) return
   
   // Get total fund value for each vault
   const summaries = await api.multiCall({
@@ -208,7 +211,7 @@ const getStsatoTVL = async (api) => {
 }
 
 module.exports = {
-  methodology: "TVL: Aero auto-compounder vaults on Optimism and Base whose LP does not pair ITP (every DAO-official vault from the Aero v2 factories: LP held idle plus staked in the gauge, unwrapped); dHEDGE vaults managed by the DAO across multiple chains; cbEGGS.finance protocol TVL (ETH backing on Base); and stSATO TVL on Ethereum from on-chain SATO backing via getBacking(). cbEGGS is owned by Infinite Trading. Pool2: auto-compounder vaults holding ITP- or cbEGGS-paired liquidity (Velodrome and ITP-paired Aero vaults on Optimism, ITP-paired Aero vaults and Uniswap V3 position NFTs plus idle tokens on Base). Staking: ITP staking vault.",
+  methodology: "TVL: Aero auto-compounder vaults on Optimism and Base whose LP does not pair ITP (every DAO-official vault from the Aero v2 factories: LP held idle plus staked in the gauge, unwrapped); dHEDGE vaults managed by the DAO treasury or the Infinite Trading operations wallet across multiple chains; cbEGGS.finance protocol TVL (ETH backing on Base); and stSATO TVL on Ethereum from on-chain SATO backing via getBacking(). cbEGGS is owned by Infinite Trading. Pool2: auto-compounder vaults holding ITP- or cbEGGS-paired liquidity (Velodrome and ITP-paired Aero vaults on Optimism, ITP-paired Aero vaults and Uniswap V3 position NFTs plus idle tokens on Base). Staking: ITP staking vault.",
   doublecounted: true,
   ethereum: {
     tvl: getStsatoTVL,
